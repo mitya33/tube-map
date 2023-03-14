@@ -145,7 +145,7 @@ export class TubeMap {
 				const prevJoint = prevJoints.find(obj =>
 					obj.between.includes(targetBlockId) && obj.between.includes(block.id)
 				);
-				const joint = prevJoint || {between: [block.id, targetBlockId]};
+				const joint = prevJoint || {id: this.#joints.length, between: [block.id, targetBlockId]};
 				joint.el = document.createElementNS(ns, 'circle');
 				this.#opts.onClickJoint && joint.el.addEventListener('click', evt => this.#opts.onClickJoint(evt, joint));
 				joint.el.classList.add('joint');
@@ -169,7 +169,7 @@ export class TubeMap {
 				const isPrevJoint = !!prevJoints.find(prevJoint => prevJoint.x === joint.x && prevJoint.y == joint.y);
 				const block = this.#canvases.blocks.querySelector('#'+blockId);
 				const line = document.createElementNS(ns, 'line');
-				const connector = {el: line, block: block.obj, joint};
+				const connector = {el: line, from: block.id, to: joint.id};
 				this.#canvases.connectors.appendChild(line);
 				this.#connectors.push(connector);
 				line.setAttribute('x1', block.obj.x);
@@ -221,7 +221,7 @@ export class TubeMap {
 		};
 		block.el.obj = block;
 		this.#opts.onClickBlock && block.el.addEventListener('click', evt => this.#opts.onClickBlock(evt, block));
-		block.el.classList.add.apply(block.el.classList, ['block', ...(!params.class ? [] : params.class.split(' '))]);
+		block.el.classList.add(...['block', !params.class ? [] : params.class.split(' ')].flat());
 		if (params.color) block.el.style.fill = params.color;
         block.el.setAttribute('cx', block.x);
         block.el.setAttribute('cy', block.y);
@@ -249,7 +249,7 @@ export class TubeMap {
 			block.enRoute = true;
 			block.el.classList.add(enRouteClass);
 		});
-		this.#connectors.filter(obj => steps.includes(obj.block.id) || steps.includes(obj.joint.id)).forEach(obj => {
+		this.#connectors.filter(obj => steps.includes(obj.from) || steps.includes(obj.to)).forEach(obj => {
 			obj.enRoute = true;
 			obj.el.classList.add(enRouteClass);
 		});
@@ -269,6 +269,19 @@ export class TubeMap {
 		const block = this.#blocks.find(block => block.id == id);
 		if (!block) return console.error(`No such block, "${id}"`);
 		return block;
+	}
+
+	/* ---
+	| API: EXPORT - export all data, for future reimport
+	--- */
+
+	export() {
+		const ret = {};
+		return {
+			blocks: this.#blocks.map(obj => { delete obj.el; return obj; }),
+			joints: this.#jointss.map(obj => { delete obj.el; return obj; }),
+			connectors: this.#connectors.map(obj => { delete obj.el; return obj; }),
+		};
 	}
 
 }
