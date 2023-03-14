@@ -1,11 +1,8 @@
 const defaults = {
 	showGrid: 1,
-	snapBlocks: 1,
+	snapToGrid: 0,
 	doJoints: 1,
-	snapJoints: 1,
 	gridSquareSize: 60,
-	lineAnimSteps: 20,
-	lineAnimSpeed: .6, //ms per frame
 	grid: [13, 7]
 };
 const ns = 'http://www.w3.org/2000/svg';
@@ -99,7 +96,7 @@ export class TubeMap {
 				x: evt.pageX - this.#el.offsetLeft - this.#offset.x,
 				y: evt.pageY - this.#el.offsetTop - this.#offset.y
 			};
-			this.#opts.snapBlocks && ['x', 'y'].forEach(which =>
+			this.#opts.snapToGrid && ['x', 'y'].forEach(which =>
 				coords[which] = (Math.round(coords[which] / this.#opts.gridSquareSize) * this.#opts.gridSquareSize)
 			);
 			['x', 'y'].forEach(which => this.#dragging.setAttribute('c'+which, this.#dragging.obj[which] = coords[which]));
@@ -150,25 +147,18 @@ export class TubeMap {
 				);
 				const joint = prevJoint || {between: [block.id, targetBlockId]};
 				joint.el = document.createElementNS(ns, 'circle');
-				this.#opts.onClickJoint && joint.el.addEventListener('click', evt =>
-					this.#opts.onClickJoint(evt, joint.between.map(blockId => blockId))
-				);
+				this.#opts.onClickJoint && joint.el.addEventListener('click', evt => this.#opts.onClickJoint(evt, joint));
 				joint.el.classList.add('joint');
 				joint.el.obj = joint;
 				['x', 'y'].forEach(which => joint[which] = !prevJoint ?
 					Math.min(block[which], targetBlock.obj[which]) + (Math.abs(block[which] - targetBlock.obj[which]) / 2) :
 					prevJoint[which]
 				);
-				this.#opts.snapJoints && ['x', 'y'].forEach(which =>
+				this.#opts.snapToGrid && ['x', 'y'].forEach(which =>
 					joint[which] = (Math.round(joint[which] / this.#opts.gridSquareSize) * this.#opts.gridSquareSize)
 				);
 				['x', 'y'].forEach(which => joint.el.setAttribute('c'+which, joint[which]));
-
-				//...add - if animating connectors and wasn't here already, wait for that
-				const addEl = () => this.#canvases.blocks.appendChild(joint.el);
-				!prevJoint ?
-					setTimeout( addEl, (this.#opts.lineAnimSpeed * this.#opts.lineAnimSteps) + this.#opts.lineAnimSpeed) :
-					addEl();
+				this.#canvases.blocks.appendChild(joint.el);
 				this.#joints.push(joint);
 			})
 		);
@@ -182,24 +172,10 @@ export class TubeMap {
 				const connector = {el: line, block: block.obj, joint};
 				this.#canvases.connectors.appendChild(line);
 				this.#connectors.push(connector);
-
-				//...animate, if enabled and is new connector
-				if (this.#dragging || this.#opts.lineAnimSteps === 1 || isPrevJoint) {
-					line.setAttribute('x1', block.obj.x);
-					line.setAttribute('x2', joint.x);
-					line.setAttribute('y1', block.obj.y);
-					line.setAttribute('y2', joint.y);
-				} else {
-					let i=1;
-					let int = setInterval(() => {
-						line.setAttribute('x1', block.obj.x);
-						line.setAttribute('x2', block.obj.x + (((joint.x - block.obj.x) / this.#opts.lineAnimSteps)) * i);
-						line.setAttribute('y1', block.obj.y);
-						line.setAttribute('y2', block.obj.y + (((joint.y - block.obj.y) / this.#opts.lineAnimSteps)) * i);
-						i == this.#opts.lineAnimSteps && clearInterval(int);
-						i++;
-					}, this.#opts.lineAnimSpeed);
-				}
+				line.setAttribute('x1', block.obj.x);
+				line.setAttribute('x2', joint.x);
+				line.setAttribute('y1', block.obj.y);
+				line.setAttribute('y2', joint.y);
 			})
 		);
 
@@ -234,20 +210,17 @@ export class TubeMap {
 		if (this.#blocks[id]) return console.error(`Block already exists with ID "${id}"`);
 		if ((params.x && (params.x < 1 || params.x > this.#opts.grid[0])) || (params.y && (params.y < 1 || params.y > this.#opts.grid[1])))
 			return console.log('Invalid coordinates');
-		const mult = (this.#opts.snapBlocks ? this.#opts.gridSquareSize : 1);
-		const startCoords = {x: (params.x || 1) * mult, y: (params.y || 1) * mult};
+		const startCoords = {x: (params.x || 1) * this.#opts.gridSquareSize, y: (params.y || 1) * this.#opts.gridSquareSize};
 		const block = {
 			el: document.createElementNS(ns, 'circle'),
 			id,
 			x: startCoords.x,
 			y: startCoords.y,
 			joinTo: [],
-			data: params.data || {}
+			data: params.data || {},
 		};
 		block.el.obj = block;
-		this.#opts.onClickBlock && block.el.addEventListener('click', evt =>
-			this.#opts.onClickBlock(evt, {id, ...block.data})
-		);
+		this.#opts.onClickBlock && block.el.addEventListener('click', evt => this.#opts.onClickBlock(evt, block));
 		block.el.classList.add.apply(block.el.classList, ['block', ...(!params.class ? [] : params.class.split(' '))]);
 		if (params.color) block.el.style.fill = params.color;
         block.el.setAttribute('cx', block.x);
@@ -273,18 +246,29 @@ export class TubeMap {
 			return console.error('Steps array references one or more invalid block IDs');
 		this.#routeSteps = steps;
 		this.#blocks.filter(block => steps.includes(block.id)).forEach(block => {
-			block.enRoute = 1;
+			block.enRoute = true;
 			block.el.classList.add(enRouteClass);
 		});
 		this.#connectors.filter(obj => steps.includes(obj.block.id) || steps.includes(obj.joint.id)).forEach(obj => {
-			obj.enRoute = 1;
+			obj.enRoute = true;
 			obj.el.classList.add(enRouteClass);
 		});
 		this.#joints.filter(obj => steps.includes(obj.between[0]) || steps.includes(obj.between[1])).forEach(obj => {
-			obj.enRoute = 1;
+			obj.enRoute = true;
 			obj.el.classList.add(enRouteClass);
 		});
 		this.#el.classList.add(showRouteClass);
+	}
+
+	/* ---
+	| API: GET BLOCK - get a block by its ID. Args:
+	|	$id (str) 	- obv.
+	--- */
+
+	getBlock(id) {
+		const block = this.#blocks.find(block => block.id == id);
+		if (!block) return console.error(`No such block, "${id}"`);
+		return block;
 	}
 
 }

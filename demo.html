@@ -15,7 +15,7 @@
 	import { TubeMap } from './tube-map.js'
 	globalThis.tm = new TubeMap('#tube-map', {
 		onClickBlock(evt, info) { console.log(info); },
-		onClickJoint(evt, info) { alert('joint is between '+between); }
+		onClickJoint(evt, info) { console.log(info); }
 	});
 	</script>
 </body>
