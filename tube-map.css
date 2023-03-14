@@ -1,0 +1,8 @@
+.tube-map svg { width: 100%; height: 100%; position: absolute; left: 0; top: 0; z-index: 3; }
+.tube-map .grid { z-index: 1; }
+.tube-map .connectors, .tube-map .joints { z-index: 2; }
+.tube-map .grid line { stroke-width: 1px; stroke: #999; }
+.tube-map .blocks circle.block { fill: #f90; r: 25px; }
+.tube-map .blocks circle.joint { fill: #333; r: 10px; }
+.tube-map .connectors line { stroke-width: 4px; stroke: #333; }
+.tube-map.show-route .blocks circle:not(.en-route), .tube-map.show-route .connectors line:not(.en-route) { opacity: .4; }

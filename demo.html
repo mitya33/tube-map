@@ -1,0 +1,21 @@
+<!doctype html>
+<head>
+	<style>
+	html, body { text-align: center; }
+	div { margin: auto; display: block; margin-bottom: 10px; background: gray; position: relative; }
+	</style>
+	<link rel='stylesheet' href='tube-map.css'>
+</head>
+<body>
+	<div id='tube-map'></div>
+	<button>
+	Add block
+	</button>
+	<script type='module'>
+	import { TubeMap } from './tube-map.js'
+	globalThis.tm = new TubeMap('#tube-map', {
+		onClickBlock(evt, info) { console.log(info); },
+		onClickJoint(evt, info) { alert('joint is between '+between); }
+	});
+	</script>
+</body>
