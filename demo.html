@@ -1,21 +1,17 @@
 <!doctype html>
 <head>
+	<link rel='stylesheet' href='tube-map.css'>
 	<style>
 	html, body { text-align: center; }
-	div { margin: auto; display: block; margin-bottom: 10px; background: gray; position: relative; }
+	div { margin: auto; display: block; margin-bottom: 10px;  position: relative; }
+	.tube-map .blocks .route-foo-bar { fill: red; }
+	.tube-map .connectors .route-foo-bar { stroke: red; }
 	</style>
-	<link rel='stylesheet' href='tube-map.css'>
 </head>
 <body>
-	<div id='tube-map'></div>
-	<button>
-	Add block
-	</button>
+	<div></div>
 	<script type='module'>
 	import { TubeMap } from './tube-map.js'
-	globalThis.tm = new TubeMap('#tube-map', {
-		onClickBlock(evt, info) { console.log(info); },
-		onClickJoint(evt, info) { console.log(info); }
-	});
+	globalThis.TubeMap = TubeMap;
 	</script>
 </body>
