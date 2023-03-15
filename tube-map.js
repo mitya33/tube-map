@@ -1,21 +1,33 @@
+/* ---
+| PREP
+--- */
+
 const defaults = {
 	showGrid: 1,
 	snapToGrid: 0,
-	doJoints: 1,
+	jointsMode: 1,
 	gridSquareSize: 60,
-	grid: [13, 7]
+	grid: [13, 7],
+	dragMode: 1
 };
 const ns = 'http://www.w3.org/2000/svg';
 const cssClasses = {
-	routePrefix: 'route-',
+	appId: 'tube-map',
+	route: 'route-',
 	showingHighlightedRoute: 'showing-highlighted-route',
 	onHighlightedRoute: 'is-on-highlighted-route',
+	dragMode: 'drag-mode-',
+	jointsMode: 'joints-mode-'
 };
 const urlify = str => str.toLowerCase().replace(/\W/g, '-').replace(/-{2,}/g, '-');
 const validEvts = {
 	block: ['click', 'hover', 'drag', 'dragEnd']
 };
 validEvts.joint = validEvts.block;
+
+/* ---
+| CLASS
+--- */
 
 export class TubeMap {
 
@@ -38,7 +50,7 @@ export class TubeMap {
 
 	constructor(el, opts = {}) {
 		this.#el = document.querySelector(el);
-		this.#opts = Object.assign(opts, defaults);
+		this.#opts = Object.assign(defaults, opts);
 		this.#blocks = [];
 		this.#connectors = [];
 		this.#joints = [];
@@ -46,7 +58,7 @@ export class TubeMap {
 		this.#offset = null;
 		this.#events = {block: [], joint: []};
 		this.#buildCanvas();
-		this.#dragDrop();
+		this.#opts.dragMode && this.#dragDrop();
 		this.listenEvents();
 	}
 
@@ -58,7 +70,12 @@ export class TubeMap {
 
 		//prep container
 		this.#el.innerHTML = '';
-		this.#el.classList.add('tube-map');
+		this.#el.className = '';
+		this.#el.classList.add(
+			cssClasses.appId,
+			cssClasses.jointsMode+this.#opts.jointsMode,
+			cssClasses.dragMode+this.#opts.dragMode
+		);
 
 		//add elements
 		this.#el.innerHTML = `
@@ -97,12 +114,12 @@ export class TubeMap {
 		this.#canvases.blocks.addEventListener('mousedown', evt => {
 			if (!evt.target.matches('circle')) return;
 			this.#dragging = evt.target;
+			this.#dragging.classList.add('dragging');
 			this.#offset = {
 				x: evt.pageX - this.#el.offsetLeft - this.#dragging.getAttribute('cx'),
 				y: evt.pageY - this.#el.offsetTop - this.#dragging.getAttribute('cy')
 			};
 		});
-		document.body.addEventListener('mouseup', evt => this.#dragging = null);
 		this.#canvases.blocks.addEventListener('mousemove', evt => {
 			if (!this.#dragging) return;
 			const coords = {
@@ -115,6 +132,10 @@ export class TubeMap {
 			['x', 'y'].forEach(which => this.#dragging.setAttribute('c'+which, this.#dragging.obj[which] = coords[which]));
 			this.#joinUp(this.#dragging.matches('.block') ? 'dragBlock' : 'dragJoint', this.#dragging);
 			this.highlightRoute(this.#highlightedRoute);
+		});
+		document.body.addEventListener('mouseup', evt => {
+			this.#dragging.classList.remove('dragging');
+			this.#dragging = null;
 		});
 	}
 
@@ -153,7 +174,7 @@ export class TubeMap {
 		}
 
 		//joints - redrawn only if relationships changed, and those already extant stay unmoved...
-		this.#opts.doJoints && trigger == 'addRel' && this.#blocks.forEach((block, i) =>
+		this.#opts.jointsMode && trigger == 'addRel' && this.#blocks.forEach((block, i) =>
 			block.joinTo.forEach(targetBlockId => {
 				const targetBlock = this.#canvases.blocks.querySelector('#'+targetBlockId);
 				const joint =
@@ -161,6 +182,8 @@ export class TubeMap {
 					{id: this.#joints.length, between: [block.id, targetBlockId]};
 				joint.el = document.createElementNS(ns, 'circle');
 				joint.el.classList.add('joint');
+				joint.route && joint.el.classList.add(cssClasses.route+urlify(joint.route));
+				joint.onHighlightedRoute && joint.el.classList.add(cssClasses.onHighlightedRoute);
 				joint.el.obj = joint;
 				['x', 'y'].forEach(which => joint[which] = !joint[which] ?
 					Math.min(block[which], targetBlock.obj[which]) + (Math.abs(block[which] - targetBlock.obj[which]) / 2) :
@@ -175,38 +198,38 @@ export class TubeMap {
 			})
 		);
 
-		//connectors (joints enabled - connect blocks to intermediary joint)...
-		this.#opts.doJoints && this.#joints.forEach(joint => 
+		//connectors - joints enabled: connect blocks to intermediary joint
+		this.#opts.jointsMode && this.#joints.forEach(joint => 
 			joint.between.forEach(blockId => {
 				const block = this.#canvases.blocks.querySelector('#'+blockId);
-				const line = document.createElementNS(ns, 'line');
-				const connector =
-					prevConnectors.find(obj => obj.from == block.id && obj.to == joint.id) ||
-					{from: block.id, to: joint.id};
-				connector.el = line;
-				connector.route && line.classList.add(cssClasses.routePrefix+urlify(connector.route));
-				this.#canvases.connectors.appendChild(line);
-				this.#connectors.push(connector);
-				line.setAttribute('x1', block.obj.x);
-				line.setAttribute('x2', joint.x);
-				line.setAttribute('y1', block.obj.y);
-				line.setAttribute('y2', joint.y);
+				shared.call(this, block, joint, block.obj, joint);
 			})
 		);
 
-		//connectors (joints disabled - connect directly between blocks)
-		!this.#opts.doJoints && this.#blocks.forEach(block =>
+		//connectors - joints disabled: connect directly between blocks)
+		!this.#opts.jointsMode && this.#blocks.forEach(block =>
 			block.joinTo.forEach(targetBlockId => {
-				const line = document.createElementNS(ns, 'line');
 				const targetBlock = this.#canvases.blocks.querySelector('#'+targetBlockId);
-				this.#canvases.connectors.appendChild(line);
-				this.#connectors.push({el: line, block: block, joint: targetBlock.obj});
-				line.setAttribute('x1', block.x);
-				line.setAttribute('x2', targetBlock.obj.x);
-				line.setAttribute('y1', block.y);
-				line.setAttribute('y2', targetBlock.obj.y);
+				shared.call(this, block, targetBlock, block, targetBlock.obj);
 			})
 		);
+
+		//connectors - shared logic by both above routes i.e. using and not using joints)
+		function shared(block, jointOrTargetBlock, x1y1, x2y2) {
+			const line = document.createElementNS(ns, 'line');
+			const connector =
+				prevConnectors.find(obj => obj.from == block.id && obj.to == jointOrTargetBlock.id) ||
+				{from: block.id, to: jointOrTargetBlock.id};
+			connector.el = line;
+			connector.route && line.classList.add(cssClasses.route+urlify(connector.route));
+			connector.onHighlightedRoute && line.classList.add(cssClasses.onHighlightedRoute);
+			this.#canvases.connectors.appendChild(line);
+			this.#connectors.push(connector);
+			line.setAttribute('x1', x1y1.x);
+			line.setAttribute('x2', x2y2.x);
+			line.setAttribute('y1', x1y1.y);
+			line.setAttribute('y2', x2y2.y);
+		}
 
 	}
 
@@ -260,6 +283,25 @@ export class TubeMap {
 	}
 
 	/* ---
+	| API: REMOVE BLOCK - remove a block from the grid. Args:
+	|	$id (str)	- the block ID
+	--- */
+
+	removeBlock(id) {
+		const index = this.#blocks.findIndex(block => block.id == id);
+		if (!index) return console.error(`No such block, "${id}"`);
+		this.#blocks[index].el.remove();
+		this.#blocks.splice(index, 1);
+		this.#joints.forEach((obj, i) => {
+			if (obj.between.includes(id)) {
+				obj.el.remove();
+				this.#joints.splice(i, 1);
+			}
+		});
+		this.#joinUp();
+	}
+
+	/* ---
 	| API: ADD ROUTE - define a route via several waypoints (blocks). Args:
 	|	$name (str)		- the route name
 	|	$steps (arr) 	- array of block IDs along the route
@@ -271,19 +313,26 @@ export class TubeMap {
 		if (steps.find(blockId => !this.#blocks.find(block => block.id == blockId)))
 			return console.error('Steps array references one or more invalid block IDs');
 		const nameSafe = urlify(name);
-		this.#blocks.filter(block => steps.includes(block.id)).forEach(block => {
+		let routeBlocks = this.#blocks.filter(block => steps.includes(block.id));
+		routeBlocks.forEach(block => {
 			block.routes.push(name);
-			block.el.classList.add(cssClasses.routePrefix+nameSafe);
+			block.el.classList.add(cssClasses.route+nameSafe);
 		});
+		routeBlocks = routeBlocks.map(block => block.id);
 		let routeJoints = this.#joints.filter(obj => steps.includes(obj.between[0]) && steps.includes(obj.between[1]));
 		routeJoints.forEach(obj => {
 			obj.route = name;
-			obj.el.classList.add(cssClasses.routePrefix+nameSafe);
+			obj.el.classList.add(cssClasses.route+nameSafe);
 		});
 		routeJoints = routeJoints.map(joint => joint.id);
-		this.#connectors.filter(obj => routeJoints.includes(obj.from) || routeJoints.includes(obj.to)).forEach(obj => {
+		this.#connectors.filter(obj => {
+			return (
+				(this.#opts.jointsMode && (routeJoints.includes(obj.from) || routeJoints.includes(obj.to))) ||
+				(!this.#opts.jointsMode && routeBlocks.includes(obj.from) && routeBlocks.includes(obj.to))
+			);
+		}).forEach(obj => {
 			obj.route = name;
-			obj.el.classList.add(cssClasses.routePrefix+nameSafe);
+			obj.el.classList.add(cssClasses.route+nameSafe);
 		});
 	}
 
@@ -302,7 +351,10 @@ export class TubeMap {
 		[
 			...this.#blocks.filter(obj => obj.routes.includes(route)),
 			[...this.#joints, ...this.#connectors].filter(obj => obj.route == route),
-		].flat().forEach(obj => obj.el.classList.add(cssClasses.onHighlightedRoute));
+		].flat().forEach(obj => {
+			obj.el.classList.add(cssClasses.onHighlightedRoute);
+			obj.onHighlightedRoute = true;
+		});
 		this.#highlightedRoute = name;
 		this.#el.classList.add(cssClasses.showingHighlightedRoute);
 	}

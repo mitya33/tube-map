@@ -1,3 +1,4 @@
+/* colour vars */
 .tube-map {
 	--canvasCol: #808080;
 	--gridCol: #999;
@@ -5,12 +6,22 @@
 	--highlightCol: #41e641;
 	--jointsAndConnectorsCol: #444;
 }
+
+/* canvases & grid */
 .tube-map svg { width: 100%; height: 100%; position: absolute; left: 0; top: 0; z-index: 3; }
 .tube-map .grid { z-index: 1; background: var(--canvasCol); }
+
+/* blocks, joints & connectors */
 .tube-map .connectors, .tube-map .joints { z-index: 2; }
 .tube-map .grid line { stroke-width: 1px; stroke: var(--gridCol); }
+.tube-map:not(.drag-mode-false) .blocks * { cursor: grab; }
 .tube-map .blocks .block { fill: var(--blocksCol); r: 25px; }
 .tube-map .blocks .joint { fill: var(--jointsAndConnectorsCol); r: 10px; }
+.tube-map .blocks .dragging { cursor: grabbing; }
+.tube-map.joints-mode-hover .joint { opacity: 0; }
+.tube-map.joints-mode-hover .joint:hover { opacity: 1; }
 .tube-map .connectors line { stroke-width: 4px; stroke: var(--jointsAndConnectorsCol); }
-.tube-map.showing-highlighted-route .blocks .is-on-highlighted-route { fill: var(--highlightCol); }
+
+/* highlighted route */
+.tube-map.showing-highlighted-route .blocks circle.is-on-highlighted-route { fill: var(--highlightCol); }
 .tube-map.showing-highlighted-route .connectors .is-on-highlighted-route { stroke: var(--highlightCol); }
