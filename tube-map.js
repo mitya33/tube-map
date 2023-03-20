@@ -1,7 +1,4 @@
-/* ---
-| PREP
---- */
-
+//prep
 const defaults = {
 	showGrid: 1,
 	snapToGrid: 0,
@@ -11,24 +8,9 @@ const defaults = {
 	dragMode: 1
 };
 const ns = 'http://www.w3.org/2000/svg';
-const cssClasses = {
-	appId: 'tube-map',
-	route: 'route-',
-	showingHighlightedRoute: 'showing-highlighted-route',
-	onHighlightedRoute: 'is-on-highlighted-route',
-	dragMode: 'drag-mode-',
-	jointsMode: 'joints-mode-'
-};
 const urlify = str => str.toLowerCase().replace(/\W/g, '-').replace(/-{2,}/g, '-');
-const validEvts = {
-	block: ['click', 'hover', 'drag', 'dragEnd']
-};
-validEvts.joint = validEvts.block;
 
-/* ---
-| CLASS
---- */
-
+//class
 export class TubeMap {
 
 	#el;
@@ -41,6 +23,8 @@ export class TubeMap {
 	#offset;
 	#highlightedRoute;
 	#events;
+	#routes;
+	#dragHappened;
 
 	/* ---
 	| SETUP - args:
@@ -54,12 +38,11 @@ export class TubeMap {
 		this.#blocks = [];
 		this.#connectors = [];
 		this.#joints = [];
-		this.#dragging = null;
-		this.#offset = null;
-		this.#events = {block: [], joint: []};
+		this.#dragging = this.#offset = this.#dragHappened = null;
+		this.#events = [];
+		this.#routes = {};
 		this.#buildCanvas();
 		this.#opts.dragMode && this.#dragDrop();
-		this.listenEvents();
 	}
 
 	/* ---
@@ -72,9 +55,9 @@ export class TubeMap {
 		this.#el.innerHTML = '';
 		this.#el.className = '';
 		this.#el.classList.add(
-			cssClasses.appId,
-			cssClasses.jointsMode+this.#opts.jointsMode,
-			cssClasses.dragMode+this.#opts.dragMode
+			'tube-map',
+			'joints-mode-'+this.#opts.jointsMode,
+			'drag-mode-'+this.#opts.dragMode
 		);
 
 		//add elements
@@ -114,7 +97,7 @@ export class TubeMap {
 		this.#canvases.blocks.addEventListener('mousedown', evt => {
 			if (!evt.target.matches('circle')) return;
 			this.#dragging = evt.target;
-			this.#dragging.classList.add('dragging');
+			evt.target.classList.add('dragging');
 			this.#offset = {
 				x: evt.pageX - this.#el.offsetLeft - this.#dragging.getAttribute('cx'),
 				y: evt.pageY - this.#el.offsetTop - this.#dragging.getAttribute('cy')
@@ -122,6 +105,8 @@ export class TubeMap {
 		});
 		this.#canvases.blocks.addEventListener('mousemove', evt => {
 			if (!this.#dragging) return;
+			this.#dragHappened = 1;
+			this.#events.forEach(obj => obj.evt == 'drag' && obj.cb(evt, this.#dragging));
 			const coords = {
 				x: evt.pageX - this.#el.offsetLeft - this.#offset.x,
 				y: evt.pageY - this.#el.offsetTop - this.#offset.y
@@ -134,31 +119,17 @@ export class TubeMap {
 			this.highlightRoute(this.#highlightedRoute);
 		});
 		document.body.addEventListener('mouseup', evt => {
+			if (!this.#dragging) return;
 			this.#dragging.classList.remove('dragging');
+			this.#events.forEach(obj => obj.evt == 'drop' && obj.cb(evt, this.#dragging));
 			this.#dragging = null;
+			setTimeout(() => this.#dragHappened = null, 1);
 		});
 	}
 
 	/* ---
-	| SET RELATIONSHIPS - between a block and other blocks. Args:
-	|	$blockId (int)	- obv.
-	|	$rels (arr) 	- array of block IDs to relate $block to
-	--- */
-
-	setRels(blockId, rels = []) {
-		const block = this.#blocks.find(block => block.id == blockId.toString());
-		if (!block) return console.error(`No such block, "${blockId}"`);
-		if (rels.find(to => to == blockId))
-			return console.error('Cannot link to self');
-		if (rels.find(to => !this.#blocks.find(block => block.id == to)))
-			return console.error(`One more target blocks don't exist`);
-		block.joinTo = rels || [];
-		this.#joinUp('addRel');
-	}
-
-	/* ---
 	| JOIN UP - draw connectors and joints between blocks as per relationships. Args:
-	|	$trigger (str) 	- what triggered the re-draw - 'addRel', 'dragBlock' or 'dragJoint'
+	|	$trigger (str) 	- what triggered the re-draw - 'connect', 'dragBlock' or 'dragJoint'
 	--- */
 
 	#joinUp(trigger) {
@@ -168,22 +139,27 @@ export class TubeMap {
 		const prevConnectors = this.#connectors.filter(obj => obj);
 		this.#connectors.forEach(obj => obj.el.remove());
 		this.#connectors = [];
-		if (trigger == 'addRel') {
+		if (trigger == 'connect') {
 			this.#joints.forEach(obj => obj.el.remove());
 			this.#joints = [];
 		}
 
 		//joints - redrawn only if relationships changed, and those already extant stay unmoved...
-		this.#opts.jointsMode && trigger == 'addRel' && this.#blocks.forEach((block, i) =>
-			block.joinTo.forEach(targetBlockId => {
+		this.#opts.jointsMode && trigger == 'connect' && this.#blocks.forEach((block, i) => {
+			const targetBlockIds = [...new Set(Object.values(block.joinTo).flat().filter(rel => rel.to).map(rel => rel.to))];
+			targetBlockIds.forEach(targetBlockId => {
 				const targetBlock = this.#canvases.blocks.querySelector('#'+targetBlockId);
+				const routes = new Set([...Object.keys(block.joinTo), ...Object.keys(targetBlock.obj.joinTo)].filter(route =>
+					block.joinTo[route] && targetBlock.obj.joinTo[route]
+				));
+				//console.log(block.id, targetBlockId, block.joinTo, 'vs', targetBlock.obj.joinTo, '=', routes);
+				const preev = prevJoints.find(obj => obj.between.includes(targetBlockId) && obj.between.includes(block.id));
 				const joint =
-					prevJoints.find(obj => obj.between.includes(targetBlockId) && obj.between.includes(block.id)) ||
-					{id: this.#joints.length, between: [block.id, targetBlockId]};
+					preev ||
+					{id: this.#joints.length, between: [block.id, targetBlockId], routes};
 				joint.el = document.createElementNS(ns, 'circle');
-				joint.el.classList.add('joint');
-				joint.route && joint.el.classList.add(cssClasses.route+urlify(joint.route));
-				joint.onHighlightedRoute && joint.el.classList.add(cssClasses.onHighlightedRoute);
+				joint.el.classList.add('joint', ...[...joint.routes].map(route => 'route-'+urlify(route)));
+				joint.onHighlightedRoute && joint.el.classList.add('is-on-highlighted-route');
 				joint.el.obj = joint;
 				['x', 'y'].forEach(which => joint[which] = !joint[which] ?
 					Math.min(block[which], targetBlock.obj[which]) + (Math.abs(block[which] - targetBlock.obj[which]) / 2) :
@@ -196,33 +172,37 @@ export class TubeMap {
 				this.#canvases.blocks.appendChild(joint.el);
 				this.#joints.push(joint);
 			})
-		);
+		});
 
 		//connectors - joints enabled: connect blocks to intermediary joint
-		this.#opts.jointsMode && this.#joints.forEach(joint => 
-			joint.between.forEach(blockId => {
-				const block = this.#canvases.blocks.querySelector('#'+blockId);
-				shared.call(this, block, joint, block.obj, joint);
-			})
+		this.#opts.jointsMode && this.#joints.forEach(joint =>
+			joint.routes.forEach(route => 
+				joint.between.forEach(blockId => {
+					const block = this.#canvases.blocks.querySelector('#'+blockId);
+					shared.call(this, block, joint, block.obj, joint, route);
+				})
+			)
 		);
 
 		//connectors - joints disabled: connect directly between blocks)
 		!this.#opts.jointsMode && this.#blocks.forEach(block =>
-			block.joinTo.forEach(targetBlockId => {
-				const targetBlock = this.#canvases.blocks.querySelector('#'+targetBlockId);
-				shared.call(this, block, targetBlock, block, targetBlock.obj);
+			Object.keys(block.joinTo).forEach(route => {
+				block.joinTo[route].forEach(targetBlockId => {
+					const targetBlock = this.#canvases.blocks.querySelector('#'+targetBlockId);
+					shared.call(this, block, targetBlock, block, targetBlock.obj, route);
+				})
 			})
 		);
 
 		//connectors - shared logic by both above routes i.e. using and not using joints)
-		function shared(block, jointOrTargetBlock, x1y1, x2y2) {
+		function shared(block, jointOrTargetBlock, x1y1, x2y2, route) {
 			const line = document.createElementNS(ns, 'line');
 			const connector =
 				prevConnectors.find(obj => obj.from == block.id && obj.to == jointOrTargetBlock.id) ||
-				{from: block.id, to: jointOrTargetBlock.id};
+				{from: block.id, to: jointOrTargetBlock.id, route};
 			connector.el = line;
-			connector.route && line.classList.add(cssClasses.route+urlify(connector.route));
-			connector.onHighlightedRoute && line.classList.add(cssClasses.onHighlightedRoute);
+			line.classList.add('route-'+urlify(connector.route));
+			connector.onHighlightedRoute && line.classList.add('is-on-highlighted-route');
 			this.#canvases.connectors.appendChild(line);
 			this.#connectors.push(connector);
 			line.setAttribute('x1', x1y1.x);
@@ -233,33 +213,24 @@ export class TubeMap {
 
 	}
 
-	/* ---
-	| EVENTS - listen for events and fire bound callbacks
-	--- */
-
-	listenEvents() {
-		this.#el.addEventListener('click', evt => {
-			if (!evt.target.matches('.block, .joint')) return;
-			['block', 'joint'].filter(scope => evt.target.matches('.'+scope)).forEach(scope =>
-				this.#events[scope].forEach(obj => obj.evt == 'click' && obj.cb(evt, evt.target.obj))
-			);
-		});
-	}
+	//API methods...
 
 	/* ---
-	| API: ADD BLOCK - add a block to the grid. Args:
+	| ADD BLOCK - add a block to the grid. Args:
 	|	$id (str; optnl)		- an ID for this block (defaults to "block-0", "block-1" etc.)
 	|	$params (obj; optnl)	- including:
 	|		$coords (obj)		- object of $x/$y grid point (if using grid) or coords, otherwise defaults to square 1/1
 	|		$data (obj)			- object of meta data to store on the block
-	|		$color (str) 		- colour string ("green", "#f90", "rgba(255, 0, 0, .5)" etc.) for this block
 	|		$class (str)		- CSS class(es) to add to the block
 	--- */
 
 	addBlock(id, params = {}) {
 		if (!id) id = 'block-'+(Object.keys(this.#blocks).length+1);
 		if (this.#blocks[id]) return console.error(`Block already exists with ID "${id}"`);
-		if ((params.x && (params.x < 1 || params.x > this.#opts.grid[0])) || (params.y && (params.y < 1 || params.y > this.#opts.grid[1])))
+		if (
+			(params.x && (params.x < 1 || params.x > this.#opts.grid[0])) ||
+			(params.y && (params.y < 1 || params.y > this.#opts.grid[1]))
+		)
 			return console.error('Invalid coordinates');
 		const startCoords = {x: (params.x || 1) * this.#opts.gridSquareSize, y: (params.y || 1) * this.#opts.gridSquareSize};
 		const block = {
@@ -267,23 +238,27 @@ export class TubeMap {
 			id,
 			x: startCoords.x,
 			y: startCoords.y,
-			joinTo: [],
-			routes: [],
+			joinTo: {},
 			data: params.data || {},
 		};
 		block.el.obj = block;
-		this.#opts.onClickBlock && block.el.addEventListener('click', evt => this.#opts.onClickBlock(evt, block));
-		block.el.classList.add(...['block', !params.class ? [] : params.class.split(' ')].flat());
-		if (params.color) block.el.style.fill = params.color;
+		block.el.classList.add(...['block', 'block-'+urlify(id), !params.class ? [] : params.class.split(' ')].flat());
         block.el.setAttribute('cx', block.x);
         block.el.setAttribute('cy', block.y);
 		block.el.setAttribute('id', id);
+		['click', 'hover'].forEach(evtType => {
+			const nativeEvt = evtType == 'click' ? evtType : 'mouseenter';
+			block.el.addEventListener(nativeEvt, evt => {
+				if (evtType == 'click' && this.#dragHappened) return;
+				this.#events.forEach(obj => obj.evt == evtType && obj.cb(evt, block))
+			})
+		});
 		this.#canvases.blocks.appendChild(block.el);
 		this.#blocks.push(block);
 	}
 
 	/* ---
-	| API: REMOVE BLOCK - remove a block from the grid. Args:
+	| REMOVE BLOCK - remove a block from the grid. Args:
 	|	$id (str)	- the block ID
 	--- */
 
@@ -292,6 +267,7 @@ export class TubeMap {
 		if (!index) return console.error(`No such block, "${id}"`);
 		this.#blocks[index].el.remove();
 		this.#blocks.splice(index, 1);
+		this.#blocks.forEach(block => block.joinTo.includes(id) && block.joinTo.splice(block.joinTo.indexOf(id), 1));
 		this.#joints.forEach((obj, i) => {
 			if (obj.between.includes(id)) {
 				obj.el.remove();
@@ -301,80 +277,75 @@ export class TubeMap {
 		this.#joinUp();
 	}
 
+
 	/* ---
-	| API: ADD ROUTE - define a route via several waypoints (blocks). Args:
-	|	$name (str)		- the route name
-	|	$steps (arr) 	- array of block IDs along the route
+	| CONNECT - connect two or more blocks to a route (user-defined or default). Args:
+	|	$blocks (arr)	- array of two or more block IDs, each of which will be connected along $route
+	|	$route (str) 	- the route name (default route if omitted)
 	--- */
 
-	addRoute(name, steps = []) {
-		if (!name) return console.error('Route name must be passed');
-		if (!steps || !steps.length) return;
-		if (steps.find(blockId => !this.#blocks.find(block => block.id == blockId)))
-			return console.error('Steps array references one or more invalid block IDs');
-		const nameSafe = urlify(name);
-		let routeBlocks = this.#blocks.filter(block => steps.includes(block.id));
-		routeBlocks.forEach(block => {
-			block.routes.push(name);
-			block.el.classList.add(cssClasses.route+nameSafe);
+	connect(blocks, route = 'default') {
+		if (!(blocks.length >= 2)) return console.error('Two or more block IDs must be passed');
+		let blocksSet = new Set(blocks || []);
+		if (blocksSet.size < blocks.length) return console.error('Only unique block IDs must be passed');
+		const blockObjs = this.#blocks.filter(block => blocks.includes(block.id));
+		if (blockObjs.length !== blocks.length) return console.error('One or more specified blocks do not exist');
+		blocks.forEach((blockId, i) => {
+			const blockObj = blockObjs.find(block => block.id == blockId);
+			blockObj.el.classList.add('route-'+urlify(route));
+			blockObj.joinTo[route] = blockObj.joinTo[route] || [];
+			if (i < blocks.length-1 && !blockObj.joinTo[route].find(rel => rel.to == blocks[i+1]))
+				blockObj.joinTo[route].push({to: blocks[i+1]});
+			if (i && !blockObj.joinTo[route].find(rel => rel.from == blocks[i-1]))
+				blockObj.joinTo[route].push({from: blocks[i-1]});
 		});
-		routeBlocks = routeBlocks.map(block => block.id);
-		let routeJoints = this.#joints.filter(obj => steps.includes(obj.between[0]) && steps.includes(obj.between[1]));
-		routeJoints.forEach(obj => {
-			obj.route = name;
-			obj.el.classList.add(cssClasses.route+nameSafe);
-		});
-		routeJoints = routeJoints.map(joint => joint.id);
-		this.#connectors.filter(obj => {
-			return (
-				(this.#opts.jointsMode && (routeJoints.includes(obj.from) || routeJoints.includes(obj.to))) ||
-				(!this.#opts.jointsMode && routeBlocks.includes(obj.from) && routeBlocks.includes(obj.to))
-			);
-		}).forEach(obj => {
-			obj.route = name;
-			obj.el.classList.add(cssClasses.route+nameSafe);
-		});
+		this.#joinUp('connect');
 	}
 
 	/* ---
-	| API: HIGHLIGHT ROUTE - highlight a route that was previously defined via addRoute(). Unhighlight by passing no args. Args:
+	| GET ROUTE - get the blocks of a given route. Args:
+	|	$route (str)	- the route name
+	--- */
+
+	getRoute(route) {
+		return this.#blocks.filter(block => Object.keys(block.joinTo).includes(route));
+	}
+
+	/* ---
+	| HIGHLIGHT ROUTE - highlight a route that was previously defined via addRoute(). Unhighlight by passing no args. Args:
 	|	$route (str) 	- the name of the route to highlight
 	--- */
 
 	highlightRoute(route) {
-		this.#el.classList.remove(cssClasses.showingHighlightedRoute);
+		this.#el.classList.remove('showing-highlighted-route');
 		[...this.#blocks, ...this.#connectors, ...this.#joints].forEach(obj => {
 			obj.onHighlightedRoute = false;
-			obj.el.classList.remove(cssClasses.onHighlightedRoute);
+			obj.el.classList.remove('is-on-highlighted-route');
 		});
 		if (!route) return;
 		[
 			...this.#blocks.filter(obj => obj.routes.includes(route)),
-			[...this.#joints, ...this.#connectors].filter(obj => obj.route == route),
+			[...this.#joints, ...this.#connectors].filter(obj => obj.routes.includes(route)),
 		].flat().forEach(obj => {
-			obj.el.classList.add(cssClasses.onHighlightedRoute);
+			obj.el.classList.add('is-on-highlighted-route');
 			obj.onHighlightedRoute = true;
 		});
 		this.#highlightedRoute = name;
-		this.#el.classList.add(cssClasses.showingHighlightedRoute);
+		this.#el.classList.add('showing-highlighted-route');
 	}
 
 	/* ---
-	| API: ON... - register an event of some kind. Args:
-	|	$evt (str)	- 'click', 'hover', 'dragEnd'
-	|	$scope (str)	- 'block' or 'joint'
+	| ON <X> - register an event on a block. Args:
+	|	$evt (str)	- 'click', 'hover', 'dragStart', 'drag', 'dragEnd'
 	|	$cb (func)		- the callback
 	--- */
 
-	on(evt, scope, cb) {
-		if (!validEvts[scope] || !validEvts[scope].includes(evt))
-			return console.error(`Invalid event and/or scope, ${evt+':'+scope}`);
-		this.#events[scope] = this.#events[scope] || [];
-		this.#events[scope].push({evt, cb});
+	on(evt, cb) {
+		this.#events.push({evt, cb});
 	}
 
 	/* ---
-	| API: GET BLOCK - get a block by its ID. Args:
+	| GET BLOCK - get a block by its ID. Args:
 	|	$id (str) 	- obv.
 	--- */
 
@@ -385,7 +356,7 @@ export class TubeMap {
 	}
 
 	/* ---
-	| API: EXPORT - export all data, for future reimport
+	| EXPORT - export all data, for future reimport
 	--- */
 
 	export() {
