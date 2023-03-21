@@ -2,7 +2,7 @@
 const defaults = {
 	showGrid: 1,
 	snapToGrid: 0,
-	jointsMode: 1,
+	jointsMode: false,
 	gridSquareSize: 60,
 	grid: [13, 7],
 	dragMode: 1
@@ -137,7 +137,7 @@ export class TubeMap {
 		//clear current - grab existing joint positions first so existing joints can stay unmoved
 		const prevJoints = this.#joints.filter(obj => obj);
 		const prevConnectors = this.#connectors.filter(obj => obj);
-		this.#connectors.forEach(obj => obj.el.remove());
+		[...this.#canvases.connectors.querySelectorAll('g'), ...this.#connectors].forEach(obj => (obj.el || obj).remove());
 		this.#connectors = [];
 		if (trigger == 'connect') {
 			this.#joints.forEach(obj => obj.el.remove());
@@ -152,7 +152,6 @@ export class TubeMap {
 				const routes = new Set([...Object.keys(block.joinTo), ...Object.keys(targetBlock.obj.joinTo)].filter(route =>
 					block.joinTo[route] && targetBlock.obj.joinTo[route]
 				));
-				//console.log(block.id, targetBlockId, block.joinTo, 'vs', targetBlock.obj.joinTo, '=', routes);
 				const joint =
 					prevJoints.find(obj => obj.between.includes(targetBlockId) && obj.between.includes(block.id)) ||
 					{id: this.#joints.length, between: [block.id, targetBlockId]};
@@ -175,40 +174,61 @@ export class TubeMap {
 		});
 
 		//connectors - joints enabled: connect blocks to intermediary joint
-		console.log('START');
-		this.#opts.jointsMode && this.#joints.forEach(joint =>
+		this.#opts.jointsMode && this.#joints.forEach(joint => {
+			let g = {};
 			joint.routes.forEach(route => {
-				console.log('--- '+route);
 				joint.between.forEach(blockId => {
 					const block = this.#canvases.blocks.querySelector('#'+blockId);
-					shared.call(this, block, joint, block.obj, joint, route);
+					if (!g[block.id]) {
+						g[block.id] = document.createElementNS(ns, 'g');
+						this.#canvases.connectors.appendChild(g[block.id]);
+					}
+					const angle = getAngle(block.obj.x - joint.x, block.obj.y - joint.y);
+					setGroup(g[block.id], joint, angle);
+					const lineLen = Math.hypot(joint.x - block.obj.x, joint.y - block.obj.y);
+					shared.call(this, block, joint, lineLen, route, g[block.id]);
 				})
 			})
-		);
+		});
 
 		//connectors - joints disabled: connect directly between blocks)
 		!this.#opts.jointsMode && this.#blocks.forEach(block =>
 			Object.keys(block.joinTo).forEach(route => {
-				block.joinTo[route].forEach(targetBlockId => {
-					const targetBlock = this.#canvases.blocks.querySelector('#'+targetBlockId);
-					shared.call(this, block, targetBlock, block, targetBlock.obj, route);
+				const g = {}
+				block.joinTo[route].filter(rel => rel.to).forEach(rel => {
+					if (!g[rel.to]) {
+						g[rel.to] = document.createElementNS(ns, 'g');
+						this.#canvases.connectors.appendChild(g[rel.to]);
+					}
+					const targetBlock = this.#canvases.blocks.querySelector('#'+rel.to);
+					const angle = getAngle(targetBlock.obj.x - block.x, targetBlock.obj.y - block.y);
+					setGroup(g[rel.to], block, angle);
+					const lineLen = Math.hypot(block.x - targetBlock.obj.x, block.y - targetBlock.obj.y);
+					shared.call(this, block, targetBlock.obj, lineLen, route, g[rel.to]);
 				})
 			})
 		);
 
 		//connectors - shared logic by both above routes i.e. using and not using joints)
-		function shared(block, jointOrTargetBlock, x1y1, x2y2, route) {
+		function shared(block, jointOrTargetBlock, lineLen, route, group) {
 			const line = document.createElementNS(ns, 'line');
 			const connector = {from: block.id, to: jointOrTargetBlock.id, route};
 			connector.el = line;
 			line.classList.add('route-'+urlify(connector.route));
 			connector.onHighlightedRoute && line.classList.add('is-on-highlighted-route');
-			this.#canvases.connectors.appendChild(line);
+			group.appendChild(line);
 			this.#connectors.push(connector);
-			line.setAttribute('x1', x1y1.x);
-			line.setAttribute('x2', x2y2.x);
-			line.setAttribute('y1', x1y1.y);
-			line.setAttribute('y2', x2y2.y);
+			line.setAttribute('x1', 0);
+			line.setAttribute('x2', lineLen);
+			line.setAttribute('y1', 0);
+			line.setAttribute('y2', 0);
+		}
+		function getAngle(x, y){
+		    const angle = Math.atan2(y, x) / Math.PI*180;
+		    return (360+Math.round(angle)) % 360;
+		}
+		function setGroup(group, xy, angle) {
+			group.setAttribute('transform', `translate(${xy.x}, ${xy.y}) rotate(${angle})`);
 		}
 
 	}
