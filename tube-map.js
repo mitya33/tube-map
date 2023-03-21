@@ -199,9 +199,7 @@ export class TubeMap {
 		//connectors - shared logic by both above routes i.e. using and not using joints)
 		function shared(block, jointOrTargetBlock, x1y1, x2y2, route) {
 			const line = document.createElementNS(ns, 'line');
-			const connector =
-				prevConnectors.find(obj => obj.route == route && obj.from == block.id && obj.to == jointOrTargetBlock.id) ||
-				{from: block.id, to: jointOrTargetBlock.id, route};
+			const connector = {from: block.id, to: jointOrTargetBlock.id, route};
 			connector.el = line;
 			line.classList.add('route-'+urlify(connector.route));
 			connector.onHighlightedRoute && line.classList.add('is-on-highlighted-route');
