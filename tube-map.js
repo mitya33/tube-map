@@ -153,10 +153,10 @@ export class TubeMap {
 					block.joinTo[route] && targetBlock.obj.joinTo[route]
 				));
 				//console.log(block.id, targetBlockId, block.joinTo, 'vs', targetBlock.obj.joinTo, '=', routes);
-				const preev = prevJoints.find(obj => obj.between.includes(targetBlockId) && obj.between.includes(block.id));
 				const joint =
-					preev ||
-					{id: this.#joints.length, between: [block.id, targetBlockId], routes};
+					prevJoints.find(obj => obj.between.includes(targetBlockId) && obj.between.includes(block.id)) ||
+					{id: this.#joints.length, between: [block.id, targetBlockId]};
+				joint.routes = routes;
 				joint.el = document.createElementNS(ns, 'circle');
 				joint.el.classList.add('joint', ...[...joint.routes].map(route => 'route-'+urlify(route)));
 				joint.onHighlightedRoute && joint.el.classList.add('is-on-highlighted-route');
@@ -175,13 +175,15 @@ export class TubeMap {
 		});
 
 		//connectors - joints enabled: connect blocks to intermediary joint
+		console.log('START');
 		this.#opts.jointsMode && this.#joints.forEach(joint =>
-			joint.routes.forEach(route => 
+			joint.routes.forEach(route => {
+				console.log('--- '+route);
 				joint.between.forEach(blockId => {
 					const block = this.#canvases.blocks.querySelector('#'+blockId);
 					shared.call(this, block, joint, block.obj, joint, route);
 				})
-			)
+			})
 		);
 
 		//connectors - joints disabled: connect directly between blocks)
@@ -198,7 +200,7 @@ export class TubeMap {
 		function shared(block, jointOrTargetBlock, x1y1, x2y2, route) {
 			const line = document.createElementNS(ns, 'line');
 			const connector =
-				prevConnectors.find(obj => obj.from == block.id && obj.to == jointOrTargetBlock.id) ||
+				prevConnectors.find(obj => obj.route == route && obj.from == block.id && obj.to == jointOrTargetBlock.id) ||
 				{from: block.id, to: jointOrTargetBlock.id, route};
 			connector.el = line;
 			line.classList.add('route-'+urlify(connector.route));
