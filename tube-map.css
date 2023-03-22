@@ -20,7 +20,11 @@
 .tube-map .blocks .dragging { cursor: grabbing; }
 .tube-map.joints-mode-hover .joint { opacity: 0; }
 .tube-map.joints-mode-hover .joint:hover { opacity: 1; }
-.tube-map .connectors line { stroke-width: 4px; stroke: var(--jointsAndConnectorsCol); }
+.tube-map .connectors path { stroke-width: 4px; stroke: var(--jointsAndConnectorsCol); }
+
+/* routes */
+.tube-map .connectors .route-foo { stroke: green; }
+.tube-map .connectors .route-bar { stroke: red; }
 
 /* highlighted route */
 .tube-map.showing-highlighted-route .blocks circle.is-on-highlighted-route { fill: var(--highlightCol); }

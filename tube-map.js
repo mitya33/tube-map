@@ -1,8 +1,8 @@
 //prep
 const defaults = {
 	showGrid: 1,
-	snapToGrid: 0,
-	jointsMode: false,
+	snapToGrid: 1,
+	jointsMode: 1,
 	gridSquareSize: 60,
 	grid: [13, 7],
 	dragMode: 1
@@ -192,9 +192,9 @@ export class TubeMap {
 		});
 
 		//connectors - joints disabled: connect directly between blocks)
-		!this.#opts.jointsMode && this.#blocks.forEach(block =>
+		!this.#opts.jointsMode && this.#blocks.forEach(block => {
+			const g = {}
 			Object.keys(block.joinTo).forEach(route => {
-				const g = {}
 				block.joinTo[route].filter(rel => rel.to).forEach(rel => {
 					if (!g[rel.to]) {
 						g[rel.to] = document.createElementNS(ns, 'g');
@@ -207,7 +207,7 @@ export class TubeMap {
 					shared.call(this, block, targetBlock.obj, lineLen, route, g[rel.to]);
 				})
 			})
-		);
+		});
 
 		//connectors - shared logic by both above routes i.e. using and not using joints)
 		function shared(block, jointOrTargetBlock, lineLen, route, group) {
@@ -216,12 +216,10 @@ export class TubeMap {
 			connector.el = line;
 			line.classList.add('route-'+urlify(connector.route));
 			connector.onHighlightedRoute && line.classList.add('is-on-highlighted-route');
-			group.appendChild(line);
 			this.#connectors.push(connector);
-			line.setAttribute('x1', 0);
-			line.setAttribute('x2', lineLen);
-			line.setAttribute('y1', 0);
-			line.setAttribute('y2', 0);
+			const curve = makeCurve(lineLen, group);
+			curve.classList.add('route-'+urlify(connector.route));
+			group.appendChild(curve);
 		}
 		function getAngle(x, y){
 		    const angle = Math.atan2(y, x) / Math.PI*180;
@@ -229,6 +227,17 @@ export class TubeMap {
 		}
 		function setGroup(group, xy, angle) {
 			group.setAttribute('transform', `translate(${xy.x}, ${xy.y}) rotate(${angle})`);
+		}
+		function makeCurve(x2, group) {
+			const mpx = x2 * 0.5;
+			const theta = Math.atan2(0, x2) - Math.PI / 2;
+			const offset = !(group.children.length % 2) ? (group.children.length+1) * -10 : (group.children.length+1) * 10;
+			const controlPoint = {x: mpx + offset * Math.cos(theta), y: offset * Math.sin(theta)};
+		  	const path = document.createElementNS(ns, 'path');
+		  	path.setAttribute('d', 'M0 0');
+		  	path.setAttribute('fill', 'transparent');
+			path.setAttribute('d', `M0 2 Q${controlPoint.x} ${controlPoint.y} ${x2} 2`);
+			return path;
 		}
 
 	}
