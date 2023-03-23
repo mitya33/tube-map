@@ -2,6 +2,7 @@
 const defaults = {
 	showGrid: 1,
 	snapToGrid: 1,
+	snapResolution: .5,
 	jointsMode: 1,
 	gridSquareSize: 60,
 	grid: [13, 7],
@@ -11,7 +12,7 @@ const ns = 'http://www.w3.org/2000/svg';
 const urlify = str => str.toLowerCase().replace(/\W/g, '-').replace(/-{2,}/g, '-');
 
 //class
-export class TubeMap {
+export class Metro {
 
 	#el;
 	#canvases
@@ -52,19 +53,20 @@ export class TubeMap {
 	#buildCanvas() {
 
 		//prep container
+		this.#el.style.position = 'relative';
 		this.#el.innerHTML = '';
 		this.#el.className = '';
 		this.#el.classList.add(
-			'tube-map',
+			'metro',
 			'joints-mode-'+this.#opts.jointsMode,
 			'drag-mode-'+this.#opts.dragMode
 		);
 
 		//add elements
 		this.#el.innerHTML = `
-			<div class='tm-canvas blocks'></div>
-			<svg class='tm-canvas connectors'></svg>
-			<svg class='tm-canvas grid'></svg>
+			<div class='metro-canvas blocks'></div>
+			<svg class='metro-canvas connectors'></svg>
+			<svg class='metro-canvas grid'></svg>
 		`;
 		this.#canvases = {
 			grid: this.#el.querySelector('.grid'),
@@ -112,9 +114,10 @@ export class TubeMap {
 				x: evt.pageX - this.#el.offsetLeft - this.#offset.x,
 				y: evt.pageY - this.#el.offsetTop - this.#offset.y
 			};
-			this.#opts.snapToGrid && ['x', 'y'].forEach(which =>
-				coords[which] = (Math.round(coords[which] / this.#opts.gridSquareSize) * this.#opts.gridSquareSize)
-			);
+			this.#opts.snapToGrid && ['x', 'y'].forEach(which => {
+				const gridSquareSize = this.#opts.gridSquareSize * this.#opts.snapResolution;
+				coords[which] = (Math.round(coords[which] / gridSquareSize) * gridSquareSize)
+			});
 			['x', 'y'].forEach(which => {
 				this.#dragging.obj[which] = coords[which];
 				this.#dragging.style[which == 'x' ? 'left' : 'top'] = coords[which]+'px';
@@ -168,9 +171,10 @@ export class TubeMap {
 					Math.min(block[which], targetBlock.obj[which]) + (Math.abs(block[which] - targetBlock.obj[which]) / 2) :
 					joint[which]
 				);
-				this.#opts.snapToGrid && ['x', 'y'].forEach(which =>
-					joint[which] = (Math.round(joint[which] / this.#opts.gridSquareSize) * this.#opts.gridSquareSize)
-				);
+				this.#opts.snapToGrid && ['x', 'y'].forEach(which => {
+					const gridSquareSize = this.#opts.gridSquareSize * this.#opts.snapResolution;
+					joint[which] = (Math.round(joint[which] / gridSquareSize) * gridSquareSize)
+				});
 				['x', 'y'].forEach(which => joint.el.style[which == 'x' ? 'left' : 'top'] = joint[which]+'px');
 				this.#canvases.blocks.appendChild(joint.el);
 				this.#joints.push(joint);

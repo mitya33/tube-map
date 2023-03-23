@@ -1,0 +1,38 @@
+/* colour vars */
+.metro {
+	--canvasCol: #808080;
+	--gridCol: #999;
+	--blocksCol: linear-gradient(to bottom, #feee51 0%,#fdde31 36%,#fbce11 100%);;
+	--highlightCol: #41e641;
+	--jointsCol: #555;
+	--connectorsCol: #555;
+	--blocksWidth: 80px;
+	--blocksHeight: 35px;
+	--jointsRadius: 7px;
+	--connectorWidth: 4px;
+	--textCol: #555;
+}
+
+/* canvases & grid */
+.metro .metro-canvas { width: 100%; height: 100%; position: absolute; left: 0; top: 0; z-index: 3; }
+.metro .grid { z-index: 1; background: var(--canvasCol); }
+.metro .metro-canvas > * { position: absolute; user-select: none; }
+
+/* blocks */
+.metro .blocks .block { border-radius: 6px; background: var(--blocksCol); width: var(--blocksWidth); height: var(--blocksHeight); margin: calc(var(--blocksHeight) / -2) 0 0 calc(var(--blocksWidth) / -2); font-size: .88rem; color: var(--textCol); }
+.metro:not(.drag-mode-false) .block { cursor: grab; }
+.metro .blocks .content { position: relative; top: 50%; transform: translateY(-50%); font-family: 'Trebuchet MS'; }
+.metro .blocks .dragging { cursor: grabbing; }
+
+/* blocks, joints & connectors */
+.metro .connectors, .metro .joints { z-index: 2; }
+.metro .grid line { stroke-width: 1px; stroke: var(--gridCol); }
+.metro .blocks .joint { border-radius: 50%; background: var(--jointsCol); width: calc(var(--jointsRadius) * 2); height: calc(var(--jointsRadius) * 2); margin: calc(var(--jointsRadius) / -1) 0 0 calc(var(--jointsRadius) / -1); }
+.metro:not(.drag-mode-false) .joint { cursor: grab; }
+.metro.joints-mode-hover .joint { opacity: 0; }
+.metro.joints-mode-hover .joint:hover { opacity: 1; }
+.metro .connectors path { stroke-width: var(--connectorWidth); stroke: var(--connectorsCol); }
+
+/* highlighted route */
+.metro.showing-highlighted-route .blocks circle.is-on-highlighted-route { fill: var(--highlightCol); }
+.metro.showing-highlighted-route .connectors .is-on-highlighted-route { stroke: var(--highlightCol); }
