@@ -2,7 +2,8 @@
 .metro {
 	--canvasCol: #808080;
 	--gridCol: #999;
-	--blocksCol: linear-gradient(to bottom, #feee51 0%,#fdde31 36%,#fbce11 100%);;
+	--blocksCol: linear-gradient(to bottom, #feee51 0%,#fdde31 36%,#fbce11 100%);
+	--blocksHoverCol: linear-gradient(to bottom, #f7f75a 0%,#f7e73a 36%,#f6d71a 100%);
 	--highlightCol: #41e641;
 	--jointsCol: #555;
 	--connectorsCol: #555;
@@ -20,9 +21,10 @@
 
 /* blocks */
 .metro .blocks .block { border-radius: 6px; background: var(--blocksCol); width: var(--blocksWidth); height: var(--blocksHeight); margin: calc(var(--blocksHeight) / -2) 0 0 calc(var(--blocksWidth) / -2); font-size: .88rem; color: var(--textCol); }
+.metro .blocks .block:hover { background: var(--blocksHoverCol); }
 .metro:not(.drag-mode-false) .block { cursor: grab; }
 .metro .blocks .content { position: relative; top: 50%; transform: translateY(-50%); font-family: 'Trebuchet MS'; }
-.metro .blocks .dragging { cursor: grabbing; }
+.metro .blocks .dragging { cursor: grabbing; transform: scale(1.075) rotate(-3deg); }
 
 /* blocks, joints & connectors */
 .metro .connectors, .metro .joints { z-index: 2; }
