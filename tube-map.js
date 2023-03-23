@@ -62,9 +62,9 @@ export class TubeMap {
 
 		//add elements
 		this.#el.innerHTML = `
-			<svg class='blocks'></svg>
-			<svg class='connectors'></svg>
-			<svg class='grid'></svg>
+			<div class='tm-canvas blocks'></div>
+			<svg class='tm-canvas connectors'></svg>
+			<svg class='tm-canvas grid'></svg>
 		`;
 		this.#canvases = {
 			grid: this.#el.querySelector('.grid'),
@@ -95,12 +95,13 @@ export class TubeMap {
 
 	#dragDrop() {
 		this.#canvases.blocks.addEventListener('mousedown', evt => {
-			if (!evt.target.matches('circle')) return;
-			this.#dragging = evt.target;
-			evt.target.classList.add('dragging');
+			const block = evt.target.closest('.blocks > *');
+			if (!block) return;
+			this.#dragging = block;
+			block.classList.add('dragging');
 			this.#offset = {
-				x: evt.pageX - this.#el.offsetLeft - this.#dragging.getAttribute('cx'),
-				y: evt.pageY - this.#el.offsetTop - this.#dragging.getAttribute('cy')
+				x: evt.pageX - this.#el.offsetLeft - parseInt(this.#dragging.style.left),
+				y: evt.pageY - this.#el.offsetTop - parseInt(this.#dragging.style.top)
 			};
 		});
 		this.#canvases.blocks.addEventListener('mousemove', evt => {
@@ -114,7 +115,10 @@ export class TubeMap {
 			this.#opts.snapToGrid && ['x', 'y'].forEach(which =>
 				coords[which] = (Math.round(coords[which] / this.#opts.gridSquareSize) * this.#opts.gridSquareSize)
 			);
-			['x', 'y'].forEach(which => this.#dragging.setAttribute('c'+which, this.#dragging.obj[which] = coords[which]));
+			['x', 'y'].forEach(which => {
+				this.#dragging.obj[which] = coords[which];
+				this.#dragging.style[which == 'x' ? 'left' : 'top'] = coords[which]+'px';
+			});
 			this.#joinUp(this.#dragging.matches('.block') ? 'dragBlock' : 'dragJoint', this.#dragging);
 			this.highlightRoute(this.#highlightedRoute);
 		});
@@ -156,7 +160,7 @@ export class TubeMap {
 					prevJoints.find(obj => obj.between.includes(targetBlockId) && obj.between.includes(block.id)) ||
 					{id: this.#joints.length, between: [block.id, targetBlockId]};
 				joint.routes = routes;
-				joint.el = document.createElementNS(ns, 'circle');
+				joint.el = document.createElement('div');
 				joint.el.classList.add('joint', ...[...joint.routes].map(route => 'route-'+urlify(route)));
 				joint.onHighlightedRoute && joint.el.classList.add('is-on-highlighted-route');
 				joint.el.obj = joint;
@@ -167,7 +171,7 @@ export class TubeMap {
 				this.#opts.snapToGrid && ['x', 'y'].forEach(which =>
 					joint[which] = (Math.round(joint[which] / this.#opts.gridSquareSize) * this.#opts.gridSquareSize)
 				);
-				['x', 'y'].forEach(which => joint.el.setAttribute('c'+which, joint[which]));
+				['x', 'y'].forEach(which => joint.el.style[which == 'x' ? 'left' : 'top'] = joint[which]+'px');
 				this.#canvases.blocks.appendChild(joint.el);
 				this.#joints.push(joint);
 			})
@@ -217,7 +221,7 @@ export class TubeMap {
 			line.classList.add('route-'+urlify(connector.route));
 			connector.onHighlightedRoute && line.classList.add('is-on-highlighted-route');
 			this.#connectors.push(connector);
-			const curve = makeCurve(lineLen, group);
+			const curve = makeCurve(lineLen, group, Object.keys((block.obj || block).joinTo).length);
 			curve.classList.add('route-'+urlify(connector.route));
 			group.appendChild(curve);
 		}
@@ -228,15 +232,15 @@ export class TubeMap {
 		function setGroup(group, xy, angle) {
 			group.setAttribute('transform', `translate(${xy.x}, ${xy.y}) rotate(${angle})`);
 		}
-		function makeCurve(x2, group) {
+		function makeCurve(x2, group, numRoutes) {
 			const mpx = x2 * 0.5;
 			const theta = Math.atan2(0, x2) - Math.PI / 2;
-			const offset = !(group.children.length % 2) ? (group.children.length+1) * -10 : (group.children.length+1) * 10;
+			let offset = !(group.children.length % 2) ? (group.children.length+1) * -10 : (group.children.length+1) * 10;
+			if (numRoutes == 1) offset = 0;
 			const controlPoint = {x: mpx + offset * Math.cos(theta), y: offset * Math.sin(theta)};
 		  	const path = document.createElementNS(ns, 'path');
-		  	path.setAttribute('d', 'M0 0');
 		  	path.setAttribute('fill', 'transparent');
-			path.setAttribute('d', `M0 2 Q${controlPoint.x} ${controlPoint.y} ${x2} 2`);
+			path.setAttribute('d', `M0 0 Q${controlPoint.x} ${controlPoint.y} ${x2} 0`);
 			return path;
 		}
 
@@ -248,9 +252,11 @@ export class TubeMap {
 	| ADD BLOCK - add a block to the grid. Args:
 	|	$id (str; optnl)		- an ID for this block (defaults to "block-0", "block-1" etc.)
 	|	$params (obj; optnl)	- including:
-	|		$coords (obj)		- object of $x/$y grid point (if using grid) or coords, otherwise defaults to square 1/1
+	|		$x (int)			- X position or grid point (if using grid), otherwise defaults to square 1/1
+	|		$y (int) 			- Y " " "
 	|		$data (obj)			- object of meta data to store on the block
 	|		$class (str)		- CSS class(es) to add to the block
+	|		$content (str; el)	- a HTML string or HTML element reference to insert into the block, as content
 	--- */
 
 	addBlock(id, params = {}) {
@@ -263,7 +269,7 @@ export class TubeMap {
 			return console.error('Invalid coordinates');
 		const startCoords = {x: (params.x || 1) * this.#opts.gridSquareSize, y: (params.y || 1) * this.#opts.gridSquareSize};
 		const block = {
-			el: document.createElementNS(ns, 'circle'),
+			el: document.createElement('div'),
 			id,
 			x: startCoords.x,
 			y: startCoords.y,
@@ -271,9 +277,16 @@ export class TubeMap {
 			data: params.data || {},
 		};
 		block.el.obj = block;
+		const content = document.createElement('div');
+		content.classList.add('content');
+		block.el.appendChild(content);
+		if (params.content) {
+			if (typeof params.content == 'object') content.appendChild(params.content);
+			if (typeof params.content == 'string') content.innerHTML = params.content;
+		}
 		block.el.classList.add(...['block', 'block-'+urlify(id), !params.class ? [] : params.class.split(' ')].flat());
-        block.el.setAttribute('cx', block.x);
-        block.el.setAttribute('cy', block.y);
+        block.el.style.left = block.x+'px';
+        block.el.style.top = block.y+'px';
 		block.el.setAttribute('id', id);
 		['click', 'hover'].forEach(evtType => {
 			const nativeEvt = evtType == 'click' ? evtType : 'mouseenter';
