@@ -16,16 +16,11 @@
 	metro.addBlock('askname', {x: 4, y: 1, content: 'ask name'});
 	metro.addBlock('invite', {x: 7, y: 1, content: 'invite quiz'});
 	metro.addBlock('start', {x: 10, y: 1, content: 'start quiz'});
-	metro.addBlock('Q1', {x: 10, y: 3, content: 'Q1'});
-	metro.addBlock('Q2', {x: 10, y: 5, content: 'Q2'});
-	metro.addBlock('Q3', {x: 10, y: 7, content: 'Q3'});
-	metro.addBlock('nevermind', {x: 7, y: 3, content: 'nevermind'});
-	metro.addBlock('quit', {x: 7, y: 5, content: 'quit'});
-	metro.addBlock('score', {x: 7, y: 7, content: 'give score'});
-	metro.connect(['askname', 'invite', 'start', 'Q1', 'Q2', 'Q3', 'score']);
-	metro.connect(['invite', 'nevermind']);
-	metro.connect(['Q1', 'quit']);
-	metro.connect(['Q2', 'quit']);
-	metro.connect(['Q3', 'quit']);
+	metro.addBlock('questions', {x: 10, y: 3, content: 'questions'});
+	metro.addBlock('score', {x: 10, y: 5, content: 'give score'});
+	metro.addBlock('quit', {x: 7, y: 3, content: 'quit'});
+	metro.connect(['askname', 'invite', 'start', 'questions', 'score']);
+	metro.connect(['invite', 'quit']);
+	metro.connect(['questions', 'quit']);
 	</script>
 </body>

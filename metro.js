@@ -3,7 +3,7 @@ const defaults = {
 	showGrid: 1,
 	snapToGrid: 1,
 	snapResolution: .5,
-	jointsMode: 1,
+	jointsMode: 0,
 	gridSquareSize: 60,
 	grid: [13, 7],
 	dragMode: 1
@@ -260,7 +260,8 @@ export class Metro {
 	|		$y (int) 			- Y " " "
 	|		$data (obj)			- object of meta data to store on the block
 	|		$class (str)		- CSS class(es) to add to the block
-	|		$content (str; el)	- a HTML string or HTML element reference to insert into the block, as content
+	|		$content (str; el)	- a HTML string	 or HTML element reference to insert into the block, as content. If omitted,
+	|							  $id will be used
 	--- */
 
 	addBlock(id, params = {}) {
@@ -284,10 +285,9 @@ export class Metro {
 		const content = document.createElement('div');
 		content.classList.add('content');
 		block.el.appendChild(content);
-		if (params.content) {
-			if (typeof params.content == 'object') content.appendChild(params.content);
-			if (typeof params.content == 'string') content.innerHTML = params.content;
-		}
+		if (!params.content) params.content = params.id;
+		if (typeof params.content == 'object') content.appendChild(params.content);
+		if (typeof params.content == 'string') content.innerHTML = params.content;
 		block.el.classList.add(...['block', 'block-'+urlify(id), !params.class ? [] : params.class.split(' ')].flat());
         block.el.style.left = block.x+'px';
         block.el.style.top = block.y+'px';
